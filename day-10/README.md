@@ -1,97 +1,44 @@
-# Lesson 7: VPC with Servers in Private Subnets and NAT
+# Lesson 10: VPC with Private Subnets, NAT, and ALB (2 AZ)
 
 ## What You Will Learn
-- Create a production-ready VPC with servers deployed in private subnets across two Availability Zones.
-- Use an Auto Scaling group and Application Load Balancer for high availability and scalability.
-- Enable secure internet access for private servers using NAT gateways.
-- Provide private access to Amazon S3 using a gateway VPC endpoint.
+- Build a production‑ready VPC with public and private subnets across two AZs
+- Place application servers in private subnets behind an ALB
+- Provide outbound internet via NAT gateways
+- Add an S3 gateway endpoint for private S3 access
 
 ---
 
-## Overview
-This example demonstrates how to create a VPC for servers in a production environment. To improve resiliency, servers are deployed in two Availability Zones using an Auto Scaling group and an Application Load Balancer. For additional security, servers are deployed in private subnets. They receive requests through the load balancer, connect to the internet via NAT gateways, and access Amazon S3 through a gateway VPC endpoint.
+## Architecture Overview
+Servers run in private subnets across two AZs; an Application Load Balancer in public subnets routes traffic to them. NAT gateways in public subnets provide outbound internet for patching/dependency downloads. An S3 gateway endpoint enables private S3 access.
 
-![A VPC with subnets in two Availability Zones](https://docs.aws.amazon.com/images/vpc/latest/userguide/images/vpc-example-private-subnets.png)
-
----
-
-## Routing
-
-### Public Subnet Route Table
-| Destination               | Target        |
-|---------------------------|---------------|
-| `10.0.0.0/16`             | local         |
-| `2001:db8:1234:1a00::/56`| local         |
-| `0.0.0.0/0`               | `igw-id`      |
-| `::/0`                    | `igw-id`      |
-
-> If you create IPv4-only subnets, only the IPv4 routes appear.
-
-### Private Subnet Route Table
-| Destination               | Target            |
-|---------------------------|-------------------|
-| `10.0.0.0/16`             | local             |
-| `2001:db8:1234:1a00::/56`| local             |
-| `0.0.0.0/0`               | `nat-gateway-id`  |
-| `::/0`                    | `eigw-id`         |
-| `s3-prefix-list-id`       | `s3-gateway-id`   |
-
-> The last route sends traffic destined for Amazon S3 to the gateway VPC endpoint.
+![VPC with two AZs](https://docs.aws.amazon.com/images/vpc/latest/userguide/images/vpc-example-private-subnets.png)
 
 ---
 
-## Security
+## Hands‑On (Console)
+1) Create VPC (VPC and more):
+- AZs: 2; Public subnets: 2; Private subnets: 2
+- NAT gateways: 1 per AZ; S3 gateway endpoint: enabled
+- DNS hostnames: disabled for this demo (enable if you need internal DNS)
 
-Security group rules for servers:
+2) Launch Template + Auto Scaling Group:
+- AMI: Amazon Linux 2/2023; Security group: allow from ALB only
+- ASG subnets: the two private subnets
 
-| Source                                | Protocol            | Port Range         | Comments                                               |
-|---------------------------------------|---------------------|--------------------|--------------------------------------------------------|
-| ID of the load balancer security group| listener protocol   | listener port      | Allows inbound traffic from the load balancer          |
-| ID of the load balancer security group| health check protocol| health check port | Allows inbound health check traffic from the load balancer |
+3) Application Load Balancer:
+- Subnets: the two public subnets
+- Target group: the ASG instances (health checks enabled)
 
----
+4) Route Tables:
+- Public: `0.0.0.0/0 -> igw`
+- Private: `0.0.0.0/0 -> nat-gateway`, add S3 prefix list -> S3 gateway endpoint
 
-## 1. Create the VPC
-
-- Open the [Amazon VPC console](https://console.aws.amazon.com/vpc/).
-- On the dashboard, choose **Create VPC**.
-- For **Resources to create**, choose **VPC and more**.
-- **Configure the VPC**:
-  - Enter a name for the VPC.
-  - Keep or customize the **IPv4 CIDR block**.
-  - (Optional) Enable **Amazon-provided IPv6 CIDR block**.
-- **Configure the subnets**:
-  - **Number of Availability Zones**: `2`
-  - **Number of public subnets**: `2`
-  - **Number of private subnets**: `2`
-- **NAT gateways**: Choose **1 per AZ**.
-- **Egress-only internet gateway**: Choose **Yes** if using IPv6.
-- **VPC endpoints**: Keep **S3 Gateway** enabled (no cost).
-- **DNS options**: Clear **Enable DNS hostnames**.
-- Choose **Create VPC**.
+5) Test:
+- Access the ALB DNS name; verify app works and instances can reach internet/S3
 
 ---
 
-## 2. Deploy Your Application
-
-- Create a **launch template** to specify configuration for EC2 instances.
-- Create an **Auto Scaling group** across the private subnets.
-- Create an **Application Load Balancer** in the public subnets.
-- Attach the load balancer to the Auto Scaling group.
-
----
-
-## 3. Test Your Configuration
-
-- Access your application via the load balancer DNS name.
-- Verify servers can reach the internet and Amazon S3.
-- Use **Reachability Analyzer** to troubleshoot connectivity issues.
-
----
-
-## 4. Clean Up
-
-- Delete the Auto Scaling group.
-- Delete the load balancer.
-- Delete the NAT gateways.
-- Delete the VPC.
+## Cleanup
+- Delete ASG and launch template
+- Delete ALB and target group
+- Delete NAT gateways, then the VPC

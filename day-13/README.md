@@ -1,103 +1,55 @@
-# Lesson 7: VPC with Servers in Private Subnets and NAT
+# Lesson 13: VPC Endpoints (Gateway and Interface) Hands‑On
 
 ## What You Will Learn
-- Create a production-ready VPC with servers deployed in **private subnets across two Availability Zones**.
-- Use an **Auto Scaling group** and **Application Load Balancer** for high availability and scalability.
-- Enable secure outbound internet access using **NAT gateways** (one per AZ).
-- Provide private access to **Amazon S3** using a **gateway VPC endpoint**.
+- Difference between Gateway and Interface VPC endpoints
+- Add an S3 Gateway endpoint to private subnets
+- Add an Interface endpoint (for example, Systems Manager or ECR) with security group controls
+- Test private connectivity without using an Internet Gateway
 
 ---
 
-## Overview
-This example demonstrates how to create a VPC for servers in a production environment. To improve resiliency, servers are deployed in two Availability Zones using an Auto Scaling group and an Application Load Balancer. For additional security, servers are deployed in private subnets. They receive requests through the load balancer, connect to the internet via NAT gateways, and access Amazon S3 through a gateway VPC endpoint.
-
-![A VPC with subnets in two Availability Zones](https://docs.aws.amazon.com/images/vpc/latest/userguide/images/vpc-example-private-subnets.png)
-
-The VPC includes:
-- Public and private subnets in **two Availability Zones**
-- One **NAT gateway** and one **load balancer node** in each public subnet
-- Application **servers in private subnets**, managed by an **Auto Scaling group**
-- A **gateway VPC endpoint for Amazon S3**
+## Concepts
+- Gateway endpoint: Route‑table entry to S3/DynamoDB using AWS prefix lists
+- Interface endpoint: ENI with private IPs in your subnets; controlled by SGs; billed hourly + data
 
 ---
 
-## Routing
+## Lab: Configure Endpoints
 
-### Public Subnet Route Table
-| Destination               | Target        |
-|---------------------------|---------------|
-| `10.0.0.0/16`             | local         |
-| `2001:db8:1234:1a00::/56`| local         |
-| `0.0.0.0/0`               | `igw-id`      |
-| `::/0`                    | `igw-id`      |
+### 1) S3 Gateway Endpoint
+- VPC console → Endpoints → Create endpoint
+- Service: com.amazonaws.<region>.s3 (Gateway)
+- Route tables: select the two private subnet route tables
+- Save
 
-> If you create IPv4-only subnets, only the IPv4 routes appear.
+Verify routes added:
+- Private RT adds: `pl-xxxx (S3 prefix list) -> vpce‑gateway`
 
-### Private Subnet Route Table
-| Destination               | Target            |
-|---------------------------|-------------------|
-| `10.0.0.0/16`             | local             |
-| `2001:db8:1234:1a00::/56`| local             |
-| `0.0.0.0/0`               | `nat-gateway-id`  |
-| `::/0`                    | `eigw-id`         |
-| `s3-prefix-list-id`       | `s3-gateway-id`   |
+### 2) Interface Endpoint (example: SSM)
+- Service: com.amazonaws.<region>.ssm (Interface)
+- Subnets: the two private subnets
+- Security group: allow HTTPS 443 from your instances' SG
+- Enable private DNS (recommended)
 
-> The last route sends traffic destined for Amazon S3 to the gateway VPC endpoint.
+### 3) Test from a Private Instance
+```bash
+# S3 via gateway endpoint
+aws s3 ls s3://aws-cli/ --region <region>
 
----
-
-## Security
-
-Security group rules for servers:
-
-| Source                                | Protocol            | Port Range         | Comments                                               |
-|---------------------------------------|---------------------|--------------------|--------------------------------------------------------|
-| ID of the load balancer security group| listener protocol   | listener port      | Allows inbound traffic from the load balancer          |
-| ID of the load balancer security group| health check protocol| health check port | Allows inbound health check traffic from the load balancer |
+# SSM via interface endpoint (if SSM agent/role configured)
+sudo systemctl status amazon-ssm-agent
+```
+- Confirm no egress to Internet is required for these services
 
 ---
 
-## 1. Create the VPC
-
-- Open the [Amazon VPC console](https://console.aws.amazon.com/vpc/).
-- On the dashboard, choose **Create VPC**.
-- For **Resources to create**, choose **VPC and more**.
-- **Configure the VPC**:
-  - Enter a name for the VPC.
-  - Keep or customize the **IPv4 CIDR block**.
-  - (Optional) Enable **Amazon-provided IPv6 CIDR block**.
-- **Configure the subnets**:
-  - **Number of Availability Zones**: `2`
-  - **Number of public subnets**: `2`
-  - **Number of private subnets**: `2`
-- **NAT gateways**: Choose **1 per AZ**.
-- **Egress-only internet gateway**: Choose **Yes** if using IPv6.
-- **VPC endpoints**: Keep **S3 Gateway** enabled (no cost).
-- **DNS options**: Clear **Enable DNS hostnames**.
-- Choose **Create VPC**.
+## Cost & Security Notes
+- Gateway endpoints for S3/DynamoDB have no hourly cost
+- Interface endpoints incur hourly and data processing charges
+- Restrict interface endpoint SGs to least privilege (only necessary sources, 443)
 
 ---
 
-## 2. Deploy Your Application
-
-- Create a **launch template** to specify configuration for EC2 instances.
-- Create an **Auto Scaling group** across the private subnets.
-- Create an **Application Load Balancer** in the public subnets.
-- Attach the load balancer to the Auto Scaling group.
-
----
-
-## 3. Test Your Configuration
-
-- Access your application via the load balancer DNS name.
-- Verify servers can reach the internet and Amazon S3.
-- Use **Reachability Analyzer** to troubleshoot connectivity issues.
-
----
-
-## 4. Clean Up
-
-- Delete the Auto Scaling group.
-- Delete the load balancer.
-- Delete the NAT gateways.
-- Delete the VPC.
+## Cleanup
+- Delete interface endpoints not needed
+- Remove gateway endpoint route table associations if no longer used
