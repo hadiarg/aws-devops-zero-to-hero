@@ -30,28 +30,23 @@ This example creates a VPC with:
 
 ---
 
-## Routing
+## Network Paths and Route Tables
+- Public subnets (ALB, NAT):
+  - Default route: `0.0.0.0/0 -> Internet Gateway (igw)` and `::/0 -> igw` (if IPv6)
+  - Purpose: accept inbound internet traffic to the ALB and allow NAT egress
+- Private subnets (application instances):
+  - Default route: `0.0.0.0/0 -> NAT Gateway` for outbound-only internet access
+  - IPv6 egress: `::/0 -> Egress-Only Internet Gateway (eigw)` (if IPv6 enabled)
+  - S3 access: add the AWS S3 prefix list to route privately to the S3 Gateway Endpoint
 
-### Public Subnet Route Table
-| Destination               | Target        |
-|---------------------------|---------------|
-| `10.0.0.0/16`             | local         |
-| `2001:db8:1234:1a00::/56`| local         |
-| `0.0.0.0/0`               | `igw-id`      |
-| `::/0`                    | `igw-id`      |
+Why this matters:
+- Requests: Internet → ALB (public) → instances (private)
+- Outbound: Instances (private) → NAT → Internet; S3 traffic stays private via the gateway endpoint
 
-> Handles inbound traffic from the internet to the load balancer.
-
-### Private Subnet Route Table
-| Destination               | Target            |
-|---------------------------|-------------------|
-| `10.0.0.0/16`             | local             |
-| `2001:db8:1234:1a00::/56`| local             |
-| `0.0.0.0/0`               | `nat-gateway-id`  |
-| `::/0`                    | `eigw-id`         |
-| `s3-prefix-list-id`       | `s3-gateway-id`   |
-
-> Enables outbound internet access (via NAT) and private S3 access—**no public IPs required**.
+Quick validation:
+- Open ALB DNS name and verify app response
+- From a private instance, `curl https://s3.amazonaws.com` and run `aws s3 ls` (with IAM role)
+- Use Reachability Analyzer if a path is broken
 
 ---
 

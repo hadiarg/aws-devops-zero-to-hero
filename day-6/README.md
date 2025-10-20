@@ -1,95 +1,90 @@
-# Route53
-
-# Lesson 7: VPC with Servers in Private Subnets and NAT
+# Lesson 6: Amazon Route 53 – DNS for Highly Available Architectures (Exam‑Ready)
 
 ## What You Will Learn
-- Create a production-ready VPC with servers deployed in private subnets across two Availability Zones.
-- Use an Auto Scaling group and Application Load Balancer for high availability and scalability.
-- Enable secure internet access for private servers using NAT gateways.
-- Provide private access to Amazon S3 using a gateway VPC endpoint.
+- Create and manage public and private hosted zones
+- Configure A/AAAA/CNAME/ALIAS and health‑checked failover records
+- Use weighted, latency‑based, and geolocation routing policies
+- Integrate Route 53 with ALB/CloudFront/API Gateway and on‑prem DNS
 
 ---
 
-## Overview
-The VPC includes public and private subnets in two Availability Zones. Each public subnet contains a NAT gateway and a load balancer node. Servers run in the private subnets, are managed by an Auto Scaling group, receive traffic from the load balancer, and access the internet via the NAT gateway. They connect to Amazon S3 through a gateway VPC endpoint.
-
-![A VPC with subnets in two Availability Zones](https://docs.aws.amazon.com/images/vpc/latest/userguide/images/vpc-example-private-subnets.png)
-
----
-
-## Routing
-
-### Public Subnet Route Table
-| Destination               | Target        |
-|---------------------------|---------------|
-| `10.0.0.0/16`             | local         |
-| `2001:db8:1234:1a00::/56`| local         |
-| `0.0.0.0/0`               | `igw-id`      |
-| `::/0`                    | `igw-id`      |
-
-### Private Subnet Route Table
-| Destination               | Target            |
-|---------------------------|-------------------|
-| `10.0.0.0/16`             | local             |
-| `2001:db8:1234:1a00::/56`| local             |
-| `0.0.0.0/0`               | `nat-gateway-id`  |
-| `::/0`                    | `eigw-id`         |
-| `s3-prefix-list-id`       | `s3-gateway-id`   |
+## Core Concepts
+- Hosted Zones: Containers for DNS records (public Internet or VPC‑scoped private)
+- Record Types:
+  - A / AAAA: IPv4/IPv6 addresses
+  - CNAME: Canonical name (alias to another name; not for zone apex)
+  - ALIAS: AWS‑specific pointer usable at zone apex (ALB, CloudFront, S3 website, API Gateway)
+- Health Checks: Monitor endpoints (HTTP/HTTPS/TCP) and integrate with DNS failover
+- Routing Policies: Simple, Weighted, Latency‑based, Failover, Geolocation, Geoproximity, Multivalue answer
 
 ---
 
-## Security
+## Hands‑On: Public Web App with ALB and Failover
 
-Security group rules for servers:
+### 1) Create a Public Hosted Zone
+- Domain: `example.com` (registered in Route 53 or another registrar)
+- Note the NS and SOA records; update registrar to use Route 53 name servers if external
 
-| Source                                | Protocol            | Port Range         | Comments                                               |
-|---------------------------------------|---------------------|--------------------|--------------------------------------------------------|
-| ID of the load balancer security group| listener protocol   | listener port      | Allows inbound traffic from the load balancer          |
-| ID of the load balancer security group| health check protocol| health check port | Allows inbound health check traffic from the load balancer |
+### 2) Add ALIAS Record to ALB
+- Create an ALB for your app (see Lesson 11)
+- In Route 53 → Hosted zone → Create record:
+  - Name: `app.example.com`
+  - Type: `A – IPv4 address`
+  - Alias: Yes → Target: your ALB DNS
 
----
-
-## 1. Create the VPC
-
-- Open the [Amazon VPC console](https://console.aws.amazon.com/vpc/).
-- On the dashboard, choose **Create VPC**.
-- For **Resources to create**, choose **VPC and more**.
-- **Configure the VPC**:
-  - Enter a name for the VPC.
-  - Keep or customize the **IPv4 CIDR block**.
-  - (Optional) Enable **Amazon-provided IPv6 CIDR block**.
-- **Configure the subnets**:
-  - **Number of Availability Zones**: `2`
-  - **Number of public subnets**: `2`
-  - **Number of private subnets**: `2`
-- **NAT gateways**: Choose **1 per AZ**.
-- **Egress-only internet gateway**: Choose **Yes** if using IPv6.
-- **VPC endpoints**: Keep **S3 Gateway** enabled (no cost).
-- **DNS options**: Clear **Enable DNS hostnames**.
-- Choose **Create VPC**.
+### 3) Configure Health‑Checked Failover
+- Create a Route 53 health check pointing to your primary endpoint (ALB or HTTP URL)
+- Records:
+  - Primary: `app.example.com` ALIAS to primary ALB with Failover: Primary and attach health check
+  - Secondary: `app.example.com` ALIAS to backup endpoint (e.g., static S3 website/another ALB) with Failover: Secondary
+- Test: Stop primary target; DNS should serve the secondary after health check fails
 
 ---
 
-## 2. Deploy Your Application
+## Advanced Policies (Exam Focus)
+- Weighted: Split traffic for blue/green or canary (e.g., 90/10). Useful with CodeDeploy/CodePipeline.
+- Latency‑based: Route to region with lowest latency for the resolver’s location
+- Geolocation: Route by user location (e.g., country/continent)
+- Multivalue Answer: Return multiple healthy IPs (basic load distribution)
 
-- Create a **launch template** for your EC2 instances.
-- Create an **Auto Scaling group** across the private subnets.
-- Create an **Application Load Balancer** in the public subnets.
-- Attach the load balancer to the Auto Scaling group.
-
----
-
-## 3. Test Your Configuration
-
-- Access your application via the load balancer DNS name.
-- Verify servers can reach the internet and Amazon S3.
-- Use **Reachability Analyzer** to troubleshoot connectivity issues.
+Tip: You can combine health checks with weighted records to shift traffic progressively during deployments.
 
 ---
 
-## 4. Clean Up
+## Private Hosted Zones (PHZ)
+- Scope: One or more VPCs
+- Use cases: Service discovery within VPC, split‑horizon DNS
+- Steps:
+  - Create PHZ: `corp.local`
+  - Associate with target VPC(s)
+  - Create records: `api.corp.local` → NLB/EC2 private IP
 
-- Delete the Auto Scaling group.
-- Delete the load balancer.
-- Delete the NAT gateways.
-- Delete the VPC.
+---
+
+## Integrations
+- CloudFront: Use ALIAS at zone apex to your distribution; supports global CDN
+- API Gateway: ALIAS records for custom domains; attach ACM cert in us‑east‑1 for edge‑optimized
+- S3 Static Website: Use S3 website endpoint with ALIAS; bucket name must match record name
+- Hybrid DNS: Use Route 53 Resolver endpoints to query/forward to on‑premises DNS
+
+---
+
+## Troubleshooting
+- Propagation: TTL and resolver caching delay updates; use `dig`/`nslookup`
+- Health Check flapping: Increase thresholds, verify security groups/firewalls allow probes
+- ALIAS vs CNAME: Use ALIAS at zone apex; CNAME not allowed at apex
+- Mixed IPv4/IPv6: Create both A and AAAA (and enable IPv6 on your ALB if required)
+
+---
+
+## Cleanup
+- Remove test records and health checks
+- Delete unused hosted zones
+
+---
+
+## Exam Tips
+- Prefer ALIAS over CNAME for zone apex and AWS targets
+- Use health‑checked failover for DR; combine with S3 static site or multi‑region ALB
+- Weighted routing for canary/blue‑green with pipelines
+- Private hosted zones for intra‑VPC service discovery; use Resolver for hybrid
