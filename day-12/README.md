@@ -88,6 +88,20 @@ git push -u origin feature/add-ci
 
 ### CodePipeline
 - Source: CodeCommit → Build: CodeBuild → Deploy: (CodeDeploy/CloudFormation/ECS/EKS)
+- **Exam Tip**: Use EventBridge (CloudWatch Events) rules to trigger pipelines on CodeCommit changes for maximum responsiveness
+- **Best Practice**: Configure EventBridge rule with CodeCommit repository as source, not periodic polling
+
+### EventBridge Integration (Exam Critical)
+```json
+{
+  "source": ["aws.codecommit"],
+  "detail-type": ["CodeCommit Repository State Change"],
+  "detail": {
+    "referenceType": ["branch"],
+    "referenceName": ["main"]
+  }
+}
+```
 
 ---
 

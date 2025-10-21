@@ -89,6 +89,17 @@ Add `scripts/restart.sh` and make it executable.
 - Cache builds in CodeBuild to speed up (S3 or local cache modes)
 - Use parameterized templates and CloudFormation change sets for IaC stages
 
+## Multi‑Region Deployment Patterns
+- **StackSets**: Deploy CloudFormation templates across multiple regions
+- **S3 Cross‑Region Replication**: Automatically sync artifacts between regions
+- **Route 53 + CloudFront**: Single endpoint with global distribution and failover
+
+## Blue/Green Deployment with CodePipeline
+- Create separate Auto Scaling groups behind different ALBs
+- Use Route 53 weighted routing to gradually shift traffic (10% → 50% → 100%)
+- Both environments share the same RDS Multi‑AZ database during transition
+- **Exam Pattern**: ALB + ASG + Route 53 weighted routing = gradual traffic shift
+
 ---
 
 ## Troubleshooting

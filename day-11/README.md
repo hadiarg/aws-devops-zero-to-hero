@@ -45,6 +45,18 @@
 - Restrict SSH via SSM Session Manager instead of opening port 22
 - Use IAM roles on instances (no static credentials)
 
+## Advanced ALB Patterns (Exam Focus)
+- **Lambda Targets**: Register Lambda functions as targets in target groups
+- **Path‑Based Routing**: Create listener rules with path conditions for different endpoints
+- **Weighted Target Groups**: Gradually shift traffic between EC2 and Lambda targets
+- **Blue/Green Testing**: Use weighted routing to test new Lambda functions with limited traffic
+
+## Blue/Green Deployment Pattern
+- Create separate ALBs for blue and green environments
+- Use Route 53 weighted routing to gradually shift traffic (10% → 50% → 100%)
+- Both environments can share the same RDS Multi‑AZ database during transition
+- **Exam Tip**: ALB + ASG + Route 53 weighted routing = gradual traffic shift
+
 ---
 
 ## Cleanup

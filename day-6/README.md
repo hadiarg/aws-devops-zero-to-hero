@@ -42,10 +42,17 @@
 ---
 
 ## Advanced Policies (Exam Focus)
-- Weighted: Split traffic for blue/green or canary (e.g., 90/10). Useful with CodeDeploy/CodePipeline.
-- Latency‑based: Route to region with lowest latency for the resolver’s location
-- Geolocation: Route by user location (e.g., country/continent)
-- Multivalue Answer: Return multiple healthy IPs (basic load distribution)
+- **Weighted**: Split traffic for blue/green or canary (e.g., 90/10). Useful with CodeDeploy/CodePipeline.
+- **Latency‑based**: Route to region with lowest latency for the resolver's location
+- **Geolocation**: Route by user location (e.g., country/continent)
+- **Failover**: Primary/Secondary with health checks (not gradual traffic shift)
+- **Multivalue Answer**: Return multiple healthy IPs (basic load distribution)
+
+## Exam Patterns
+- **Blue/Green Deployment**: Use weighted routing (10% → 50% → 100%) to gradually shift traffic
+- **Failover**: Use failover routing with health checks for disaster recovery
+- **Multi‑Region**: Combine CloudFront + Route 53 for single endpoint with global distribution
+- **Canary Testing**: Weighted routing with Lambda@Edge for path‑based testing
 
 Tip: You can combine health checks with weighted records to shift traffic progressively during deployments.
 
